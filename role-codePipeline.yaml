@@ -8,7 +8,7 @@ Resources:
           {
             "Statement": [{
               "Effect": "Allow",
-              "Principal": { "Service": [ "codepipeline.amazonaws.com" ]},
+              "Principal": { "Service": [ "cloudformation.amazonaws.com" ]},
               "Action": [ "sts:AssumeRole" ]
             }]
           }
@@ -28,7 +28,6 @@ Resources:
                 - Resource: "*"
                   Effect: Allow
                   Action:
-                    - codepipeline:*
                     - codebuild:StartBuild
                     - codebuild:BatchGetBuilds
                     - cloudformation:*
