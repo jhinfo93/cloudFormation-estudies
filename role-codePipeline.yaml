@@ -28,6 +28,7 @@ Resources:
                 - Resource: "*"
                   Effect: Allow
                   Action:
+                    - codepipeline:*
                     - codebuild:StartBuild
                     - codebuild:BatchGetBuilds
                     - cloudformation:*
