@@ -8,7 +8,7 @@ Resources:
           {
             "Statement": [{
               "Effect": "Allow",
-              "Principal": { "Service": [ "cloudformation.amazonaws.com" ]},
+              "Principal": { "Service": [ "codepipeline.amazonaws.com" ]},
               "Action": [ "sts:AssumeRole" ]
             }]
           }
@@ -16,7 +16,7 @@ Resources:
         Policies:
           - PolicyName: root
             PolicyDocument:
-              Version: 2012-10-17
+              Version: 2022-04-26
               Statement:
                 - Resource: arn:aws:s3:::*
                   Effect: Allow
@@ -25,11 +25,10 @@ Resources:
                     - s3:GetObject
                     - s3:GetObjectVersion
                     - s3:GetBucketVersioning
+
                 - Resource: "*"
                   Effect: Allow
                   Action:
-                    - codebuild:StartBuild
-                    - codebuild:BatchGetBuilds
                     - cloudformation:*
                     - cloudwatch:*
                     - events:*
