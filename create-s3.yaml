@@ -1,0 +1,8 @@
+Resources:
+  MeuBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [!Ref "AWS:StackName", "Bucket"]]
+

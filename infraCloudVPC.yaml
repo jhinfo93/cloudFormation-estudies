@@ -1,0 +1,227 @@
+Parameters:
+  NameOfService:
+    Description: "Nome do Sevirço que será criado na aws"
+    Type: String
+    Default: 'Jackson'
+
+  KeyName:
+    Description: "Nome do par de3 chaves criado no ec2"
+    Type: AWS::EC2::KeyPair::KeyName
+
+Resources:
+#-------------------------------------------------------------------------
+  #Criando um VPC
+  SalveVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.100.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}_VPC # Pegar o Nome da Stack colocada na Aws 
+
+  #Criando uma InternetGateway 
+  NovoInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    DependsOn: SalveVPC
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}_IG
+
+  #Atachando no ID da Vpc
+  NovoAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SalveVPC
+      InternetGatewayId: !Ref NovoInternetGateway
+#-------------------------------------------------------------------------
+#Criando uma Subnet Privada
+  SubnetPrivada:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.100.1.0/24
+      VpcId: !Ref SalveVPC
+      AvailabilityZone: !Select [0, !GetAZs '' ]
+      Tags: 
+      - Key: Name
+        Value: !Sub ${AWS::StackName}_Privada
+
+#Criando uma Subnet Pública
+  SubnetPublica:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.100.10.0/24
+      VpcId: !Ref SalveVPC
+      AvailabilityZone: !Select [0, !GetAZs '' ]
+      Tags: 
+      - Key: Name
+        Value: !Sub ${AWS::StackName}_Publica
+
+
+#-------------------------------------------------------------------------
+#Criando uma ElasticIP para o NatGateway
+  NATGatewayElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: SalveVPC
+      Tags:
+      - Key: Name
+        Value: !Join ['', [!Ref "AWS::StackName", "_EIP"]]
+
+#Criando uma NatGateway e associando o ElasticIP nela
+  NovoNATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      #Assossiando ElasticIP
+      AllocationId: !GetAtt NATGatewayElasticIp.AllocationId 
+      SubnetId: !Ref SubnetPublica
+      Tags:
+      - Key: Name
+        #!Join é uma Forma de concatenar strings
+        Value: !Join ['_', [!Ref "AWS::StackName", "NAT"]]
+
+
+
+#Criando uma RouteTable
+#-------------------------------------------------------------------------
+  RouteTablePrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SalveVPC
+      Tags:
+      - Key: Name
+        Value: !Join ['_', ["RouteTablePrivate", !Ref "AWS::StackName"]]
+
+#Criando uma RouteTable
+  RouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SalveVPC
+      Tags:
+      - Key: Name
+        Value: !Join ['_', ["RouteTablePublic", !Ref "AWS::StackName"]]
+
+
+#-------------------------------------------------------------------------
+#Assossiando uma Roteamento Privado
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NovoNATGateway
+
+#Assossiando uma Roteamento Privado
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref NovoInternetGateway
+      
+
+#-------------------------------------------------------------------------
+
+#Associando Tabela de rotas com as SubNets
+
+  PrivateRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      SubnetId: !Ref SubnetPrivada
+
+  PublicRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref SubnetPublica
+
+
+
+
+#Criando Os Grupos de Seguranças
+  SecGroupPubli:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Grupo Publico
+      GroupDescription: Grupo de Seguranca pada O Publico
+      VpcId: !Ref SalveVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref "AWS::StackName" , "-SGPubli"]]
+      SecurityGroupIngress:
+        - 
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - 
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - 
+          IpProtocol: tcp
+          FromPort: 433
+          ToPort: 433
+          CidrIp: 0.0.0.0/0
+
+  SecGroupDatabase:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: Databases
+      GroupDescription: Grupo de Seguranca pada Minha Database
+      VpcId: !Ref SalveVPC
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref "AWS::StackName" , "-SGPrivado"]]
+      SecurityGroupIngress:
+        - 
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+        - 
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+
+  ElasticIPPublic:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Ec2Instance
+      Domain: !Ref SalveVPC
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-04505e74c0741db8d 
+      SecurityGroupIds: 
+        - !Ref SecGroupPubli
+      SubnetId: !Ref SubnetPublica
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref NameOfService , !Ref "AWS::StackName" , "-EC2"]]
+           
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
