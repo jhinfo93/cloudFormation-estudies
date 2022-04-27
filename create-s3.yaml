@@ -4,5 +4,5 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: !Join ["-", [!Ref "AWS:StackName", "Bucket"]]
+          Value: !Join ["-", [ "CodePipeline", "Bucket"]]
 
