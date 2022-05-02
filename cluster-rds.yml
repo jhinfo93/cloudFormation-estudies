@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Sets up ecs cluster
+Parameters:
+  ClusterName:
+    Type: String
+
+  DBInstanceType:
+    Type: String
+
+  DBUser:
+    Type: String
+    NoEcho: true
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+
+  DBSnapshotName:
+    Type: String
+
+  DBHasAutomaticBackup:
+    AllowedValues: [true, false]
+    Type: String
+
+  # HostedZoneName:
+  #   Type: String
+
+  # CidrIp:
+  #   Type: String
+
+Conditions:
+  dbHasSnapshot: !Not [!Equals [!Ref DBSnapshotName, "WITHOUT"]]
+  dbHasAutomaticBackup: !Equals [!Ref DBHasAutomaticBackup, "true"]
+
+Resources:
+#========== Security Group
+  PostgresSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        'Fn::ImportValue': !Sub ${ClusterName}VPC
+      GroupName: !Sub ${ClusterName}AllowPostgres
+      GroupDescription: Enables Postgres access
+      SecurityGroupIngress:
+        -
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp:
+            'Fn::ImportValue': !Sub ${ClusterName}VPCCidrBlock
+
+#========== RDS
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      SubnetIds:
+        - 'Fn::ImportValue': !Sub ${ClusterName}PrivateSubnet1
+        - 'Fn::ImportValue': !Sub ${ClusterName}PrivateSubnet2
+      DBSubnetGroupDescription: Database Subnet Group
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: 'aurora-postgresql'
+      EngineVersion: '10.7'
+      DBClusterIdentifier: !Ref DatabaseCluster
+      DBInstanceClass: !Ref DBInstanceType
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      DBInstanceIdentifier: !Ref ClusterName
+      PubliclyAccessible: false
+
+  DBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: !Ref 'AWS::StackName'
+      Family: 'aurora-postgresql10'
+
+  DBClusterParameterGroup:
+    Type: 'AWS::RDS::DBClusterParameterGroup'
+    Properties:
+      Description: !Ref 'AWS::StackName'
+      Family: 'aurora-postgresql10'
+      Parameters:
+        client_encoding: 'UTF8'
+
+  DatabaseCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: 'aurora-postgresql'
+      EngineVersion: '10.7'
+      Port: 5432
+      SnapshotIdentifier: !If [dbHasSnapshot, !Ref DBSnapshotName, !Ref 'AWS::NoValue']
+      MasterUsername: !If [dbHasSnapshot, !Ref 'AWS::NoValue', !Ref DBUser]
+      MasterUserPassword: !If [dbHasSnapshot, !Ref 'AWS::NoValue', !Ref DBPassword]
+      VpcSecurityGroupIds:
+        - !Ref PostgresSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
+      PreferredMaintenanceWindow: Mon:05:00-Mon:06:00
+      PreferredBackupWindow: !If [dbHasAutomaticBackup, '03:00-04:55', !Ref 'AWS::NoValue']
+      BackupRetentionPeriod: !If [dbHasAutomaticBackup, 7, !Ref 'AWS::NoValue']
+
+  SsmRdsAddress:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /ECS-CLUSTER/${ClusterName}/RDS_ADDRESS
+      Value: !Sub ${DBInstance.Endpoint.Address}
+      Type: String
+
+  # RDSDNS:
+  #   Type: AWS::Route53::RecordSetGroup
+  #   Properties:
+  #     HostedZoneName: !Sub ${HostedZoneName}
+  #     RecordSets:
+  #       -
+  #         Name: !Sub ${ClusterName}-db.${HostedZoneName}
+  #         Type: CNAME
+  #         TTL: '60'
+  #         ResourceRecords:
+  #           - !Sub ${DBInstance.Endpoint.Address}
+
+Outputs:
+  PostgresSecurityGroup:
+    Value: !Ref PostgresSecurityGroup
+    Export:
+      Name: !Sub ${ClusterName}PostgresSecurityGroup
+
+  DBInstance:
+    Value: !Ref DBInstance
+    Export:
+      Name: !Sub ${ClusterName}DBInstance

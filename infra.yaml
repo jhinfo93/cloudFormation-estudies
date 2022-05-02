@@ -1,15 +1,126 @@
 Parameters:
-  NameOfService:
-    Description: "Nome do Sevirço que será criado na aws"
-    Type: String
-    Default: 'Jackson'
-
   KeyName:
     Description: "Nome do par de3 chaves criado no ec2"
     Type: AWS::EC2::KeyPair::KeyName
 
+#   ___           _   _   
+#  |_ _|  _ __   (_) | |_ 
+#   | |  | '_ \  | | | __|
+#   | |  | | | | | | | |_ 
+#  |___| |_| |_| |_|  \__|
+                        
 Resources:
-#-------------------------------------------------------------------------
+
+#   ____     ___    _       _____   ____  
+#  |  _ \   / _ \  | |     | ____| / ___| 
+#  | |_) | | | | | | |     |  _|   \___ \ 
+#  |  _ <  | |_| | | |___  | |___   ___) |
+#  |_| \_\  \___/  |_____| |_____| |____/ 
+                                        
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", ["role-de-Jackinho", !Ref "AWS::StackName" ]] 
+      Path: /
+      AssumeRolePolicyDocument: |
+        {
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": [ "codepipeline.amazonaws.com" ]},
+            "Action": [ "sts:AssumeRole" ]
+          }]
+        }
+
+      Policies:
+        - PolicyName: PiliticaDoService
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: arn:aws:s3:::*
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - cloudformation:*
+                  - cloudwatch:*
+                  - events:*
+                  - iam:PassRole
+                  - secretsmanager:*
+                  - ec2:*
+
+  CreateRoleCloudFormation:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", ["Liberacao-s3-role-de-Jackinho", !Ref "AWS::StackName" ]] 
+      Path: /
+      AssumeRolePolicyDocument: |
+        {
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": [ "cloudformation.amazonaws.com" ]},
+            "Action": [ "sts:AssumeRole" ]
+          }]
+        }
+
+      Policies:
+        - PolicyName: LiberarS3FULL
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: arn:aws:s3:::*
+                Effect: Allow
+                Action:
+                  - s3:*
+
+  CreateRoleCodeBuild:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", ["Liberacao-CodeBuild-role-de-Jackinho", !Ref "AWS::StackName" ]] 
+      Path: /
+      AssumeRolePolicyDocument: |
+        {
+          "Statement": [{
+            "Effect": "Allow",
+            "Principal": { "Service": [ "codebuild.amazonaws.com" ]},
+            "Action": [ "sts:AssumeRole" ]
+          }]
+        }
+      Policies:
+        - PolicyName: LiberarCodeBuildFULL
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: arn:aws:s3:::*
+                Effect: Allow
+                Action:
+                  - s3:*
+              - Resource: arn:aws:ec2:::*
+                Effect: Allow
+                Action:
+                  - ec2:*
+              - Resource: arn:aws:cloudformation:::*
+                Effect: Allow
+                Action:
+                  - cloudformation:*
+              - Resource: arn:aws:codebuild:::*
+                Effect: Allow
+                Action:
+                  - codebuild:*
+      
+#  __     __  ____     ____ 
+#  \ \   / / |  _ \   / ___|
+#   \ \ / /  | |_) | | |    
+#    \ V /   |  __/  | |___ 
+#     \_/    |_|      \____|
+#------------------------------------------------------    -------------------
   #Criando um VPC
   SalveVPC:
     Type: AWS::EC2::VPC
@@ -125,7 +236,6 @@ Resources:
 #-------------------------------------------------------------------------
 
 #Associando Tabela de rotas com as SubNets
-
   PrivateRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -137,9 +247,6 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTablePublic
       SubnetId: !Ref SubnetPublica
-
-
-
 
 #Criando Os Grupos de Seguranças
   SecGroupPubli:
@@ -190,12 +297,12 @@ Resources:
           ToPort: 3306
           CidrIp: 0.0.0.0/0
 
-  ElasticIPPublic:
-    Type: AWS::EC2::EIP
-    Properties:
-      InstanceId: !Ref Ec2Instance
-      Domain: !Ref SalveVPC
-
+#   _____    ____   ____  
+#  | ____|  / ___| |___ \ 
+#  |  _|   | |       __) |
+#  | |___  | |___   / __/ 
+#  |_____|  \____| |_____|
+                        
   Ec2Instance:
     Type: AWS::EC2::Instance
     Properties:
@@ -206,8 +313,24 @@ Resources:
       SubnetId: !Ref SubnetPublica
       KeyName: !Ref KeyName
       Tags:
-        - Key: Name
-          Value: !Join ["", [!Ref NameOfService , !Ref "AWS::StackName" , "-EC2"]]
+        - Key: Name        
+          Value: !Join ["", [!Ref "AWS::StackName" , "-EC2"]]
+
+  ElasticIPPublic:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref Ec2Instance
+      Domain: !Ref SalveVPC
+
+                                                               
+                                                               
+                                                               
+                                                               
+                                                               
+                                                               
+                                                               
+
+
            
 
 
